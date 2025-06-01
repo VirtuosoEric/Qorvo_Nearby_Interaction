@@ -28,13 +28,6 @@
                             <view autoresizesSubviews="NO" clearsContextBeforeDrawing="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="Ifk-w0-Waf" userLabel="Header">
                                 <rect key="frame" x="0.0" y="0.0" width="414" height="118"/>
                                 <subviews>
-                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="Qorvo_logo" translatesAutoresizingMaskIntoConstraints="NO" id="E2X-TM-Tg4">
-                                        <rect key="frame" x="32" y="67" width="86" height="21"/>
-                                        <constraints>
-                                            <constraint firstAttribute="width" constant="86" id="0uc-A8-fGk"/>
-                                            <constraint firstAttribute="height" constant="21" id="wrt-MZ-XPj"/>
-                                        </constraints>
-                                    </imageView>
                                     <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="fHU-bd-M60" userLabel="Settings">
                                         <rect key="frame" x="350" y="60" width="40" height="40"/>
                                         <constraints>
@@ -63,6 +56,13 @@
                                             <action selector="SwitchAR:" destination="BYZ-38-t0r" eventType="touchUpInside" id="s8i-Sz-MIe"/>
                                         </connections>
                                     </button>
+                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" misplaced="YES" image="Qorvo_logo" translatesAutoresizingMaskIntoConstraints="NO" id="E2X-TM-Tg4">
+                                        <rect key="frame" x="32" y="36" width="86" height="64"/>
+                                        <constraints>
+                                            <constraint firstAttribute="width" constant="86" id="0uc-A8-fGk"/>
+                                            <constraint firstAttribute="height" constant="21" id="wrt-MZ-XPj"/>
+                                        </constraints>
+                                    </imageView>
                                 </subviews>
                                 <color key="backgroundColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 <constraints>
@@ -326,7 +326,7 @@
         </scene>
     </scenes>
     <resources>
-        <image name="Qorvo_logo" width="86" height="21"/>
+        <image name="Qorvo_logo" width="2500" height="2500"/>
         <image name="back_icon" width="22" height="14"/>
         <image name="cube.transparent" catalog="system" width="125" height="128"/>
         <image name="switch_on" width="56" height="48"/>
