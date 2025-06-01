@@ -1,14 +1,7 @@
 import UIKit
 
-/// Delegate to handle sending configuration to the network.
+/// Delegate to handle sending configuration to the network at 3 Hz.
 protocol NetworkConfigViewDelegate: AnyObject {
-    /// Called when the user taps "Send".
-    /// - Parameters:
-    ///   - view: The NetworkConfigView instance.
-    ///   - ip: The IP address input.
-    ///   - port: The port number input.
-    ///   - distance: The current distance string from LocationFields.
-    ///   - azimuth: The current azimuth string from LocationFields.
     func networkConfigView(_ view: NetworkConfigView,
                            didTapSendTo ip: String,
                            port: Int,
@@ -16,21 +9,29 @@ protocol NetworkConfigViewDelegate: AnyObject {
                            azimuth: String)
 }
 
-/// A view that allows entering an IP and Port, and sending distance/azimuth via HTTP.
+/// A view that lets the user enter an IP/port and stream distance & azimuth to the server
+/// when connected. It toggles between **Connect** and **Disconnect** and emits delegate
+/// callbacks three times per second while connected.
 class NetworkConfigView: UIView {
+
     // MARK: – Public API
     weak var delegate: NetworkConfigViewDelegate?
-
-    /// Reference to the LocationFields view to read current values.
+    /// Reference to the view that exposes the current distance & azimuth strings.
     weak var locationFields: LocationFields?
 
-    // MARK: – Subviews
+    // MARK: – Connection State
+    private var isConnected = false
+    private var sendTimer: Timer?
+    private var cachedIP   = ""
+    private var cachedPort = 0
+
+    // MARK: – Sub‑views
     private let ipTextField: UITextField = {
         let tf = UITextField()
         tf.translatesAutoresizingMaskIntoConstraints = false
         tf.placeholder = "IP Address"
         tf.borderStyle = .roundedRect
-        tf.keyboardType = .decimalPad
+        tf.keyboardType = .decimalPad  // dotted‑decimal keypad for IPv4
         return tf
     }()
 
@@ -43,26 +44,26 @@ class NetworkConfigView: UIView {
         return tf
     }()
 
-    private let sendButton: UIButton = {
+    private let connectButton: UIButton = {
         let btn = UIButton(type: .system)
         btn.translatesAutoresizingMaskIntoConstraints = false
         if #available(iOS 15.0, *) {
             var config = UIButton.Configuration.filled()
-            config.title = "Send"
-            config.baseBackgroundColor = .systemBlue
+            config.title = "Connect"
+            config.baseBackgroundColor = .systemGreen
             config.baseForegroundColor = .white
             config.cornerStyle = .medium
             btn.configuration = config
         } else {
-            btn.setTitle("Send", for: .normal)
+            btn.setTitle("Connect", for: .normal)
             btn.setTitleColor(.white, for: .normal)
-            btn.backgroundColor = .systemBlue
+            btn.backgroundColor = .systemGreen
             btn.layer.cornerRadius = 8
         }
         return btn
     }()
 
-    // MARK: – Initialization
+    // MARK: – Initialisation
     override init(frame: CGRect) {
         super.init(frame: frame)
         translatesAutoresizingMaskIntoConstraints = false
@@ -77,19 +78,22 @@ class NetworkConfigView: UIView {
         setupConstraints()
     }
 
-    // MARK: – View Setup
+    deinit {
+        sendTimer?.invalidate()   // ensure the timer stops when the view is gone
+    }
+
+    // MARK: – View Composition
     private func setupSubviews() {
         addSubview(ipTextField)
         addSubview(portTextField)
-        addSubview(sendButton)
+        addSubview(connectButton)
 
-        // Actions
-        sendButton.addTarget(self, action: #selector(sendTapped), for: .touchUpInside)
+        connectButton.addTarget(self, action: #selector(connectTapped), for: .touchUpInside)
 
-        // Dismiss keyboard on tap outside
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
-        tapGesture.cancelsTouchesInView = false
-        addGestureRecognizer(tapGesture)
+        // Dismiss keyboard when tapping outside the text‑fields
+        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
+        tap.cancelsTouchesInView = false
+        addGestureRecognizer(tap)
     }
 
     private func setupConstraints() {
@@ -106,44 +110,87 @@ class NetworkConfigView: UIView {
             portTextField.widthAnchor.constraint(equalTo: widthAnchor, multiplier: 0.25, constant: -12),
             portTextField.heightAnchor.constraint(equalToConstant: 36),
 
-            // Send button
-            sendButton.topAnchor.constraint(equalTo: ipTextField.topAnchor),
-            sendButton.leadingAnchor.constraint(equalTo: portTextField.trailingAnchor, constant: 8),
-            sendButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
-            sendButton.centerYAnchor.constraint(equalTo: ipTextField.centerYAnchor),
-            sendButton.heightAnchor.constraint(equalToConstant: 36),
-            sendButton.widthAnchor.constraint(equalToConstant: 80)
+            // Connect button
+            connectButton.topAnchor.constraint(equalTo: ipTextField.topAnchor),
+            connectButton.leadingAnchor.constraint(equalTo: portTextField.trailingAnchor, constant: 8),
+            connectButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            connectButton.centerYAnchor.constraint(equalTo: ipTextField.centerYAnchor),
+            connectButton.heightAnchor.constraint(equalToConstant: 36),
+            connectButton.widthAnchor.constraint(equalToConstant: 100)
         ])
     }
 
-    // MARK: – Actions
-    @objc private func sendTapped() {
+    // MARK: – User Interaction
+    @objc private func connectTapped() {
         dismissKeyboard()
-        // Validate IP & port
+
+        if isConnected {
+            stopStreaming()
+            updateButton(isConnected: false)
+            return
+        }
+
+        // Validate inputs
         guard let ip = ipTextField.text, !ip.isEmpty,
-              let portText = portTextField.text,
-              let port = Int(portText) else { return }
+              let portText = portTextField.text, let port = Int(portText) else { return }
 
-        // Read distance & azimuth from the associated LocationFields
-        let distance = locationFields?.currentDistance ?? ""
-        let azimuth  = locationFields?.currentAzimuth  ?? ""
+        cachedIP = ip
+        cachedPort = port
 
-        // Notify delegate
-        delegate?.networkConfigView(self,
-                                    didTapSendTo: ip,
-                                    port: port,
-                                    distance: distance,
-                                    azimuth: azimuth)
+        startStreaming()
+        updateButton(isConnected: true)
     }
 
     @objc private func dismissKeyboard() {
         endEditing(true)
     }
 
-    // MARK: – Intrinsic Content Size
+    // MARK: – Streaming helpers
+    private func startStreaming() {
+        // Kick off with an immediate packet, then schedule 3 Hz updates.
+        sendPacket()
+
+        sendTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 3.0, repeats: true) { [weak self] _ in
+            self?.sendPacket()
+        }
+        if let timer = sendTimer {
+            // Keep firing during scroll/gesture by putting the timer in `.common` run‑loop modes.
+            RunLoop.main.add(timer, forMode: .common)
+        }
+        isConnected = true
+    }
+
+    private func stopStreaming() {
+        sendTimer?.invalidate()
+        sendTimer = nil
+        isConnected = false
+    }
+
+    private func sendPacket() {
+        let distance = locationFields?.currentDistance ?? ""
+        let azimuth  = locationFields?.currentAzimuth  ?? ""
+
+        delegate?.networkConfigView(self,
+                                    didTapSendTo: cachedIP,
+                                    port: cachedPort,
+                                    distance: distance,
+                                    azimuth: azimuth)
+    }
+
+    // MARK: – UI State
+    private func updateButton(isConnected: Bool) {
+        if #available(iOS 15.0, *) {
+            connectButton.configuration?.title = isConnected ? "Disconnect" : "Connect"
+            connectButton.configuration?.baseBackgroundColor = isConnected ? .systemRed : .systemGreen
+        } else {
+            connectButton.setTitle(isConnected ? "Disconnect" : "Connect", for: .normal)
+            connectButton.backgroundColor = isConnected ? .systemRed : .systemGreen
+        }
+    }
+
+    // MARK: – Intrinsic Size
     override var intrinsicContentSize: CGSize {
-        // Ensures the view has a visible height in a UIStackView
-        return CGSize(width: UIView.noIntrinsicMetric, height: 52)
+        // Keeps the view visible when used inside a UIStackView
+        CGSize(width: UIView.noIntrinsicMetric, height: 52)
     }
 }
-

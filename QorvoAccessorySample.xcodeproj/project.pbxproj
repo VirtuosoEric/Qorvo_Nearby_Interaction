@@ -532,7 +532,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.3.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.virtuoso.qorvonearby;
+				PRODUCT_BUNDLE_IDENTIFIER = com.virtuoso.qorvonearby2;
 				PRODUCT_NAME = "Qorvo Nearby Interaction";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -560,7 +560,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.3.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.virtuoso.qorvonearby;
+				PRODUCT_BUNDLE_IDENTIFIER = com.virtuoso.qorvonearby2;
 				PRODUCT_NAME = "Qorvo Nearby Interaction";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
