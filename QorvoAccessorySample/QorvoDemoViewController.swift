@@ -134,6 +134,9 @@ class QorvoDemoViewController: UIViewController, ArrowProtocol, TableProtocol {
         
         networkConfigView.locationFields = locationFields
         networkConfigView.delegate       = self
+        networkConfigView.dataProvider  = { [weak self] in
+            self?.allDevicesInfo() ?? []
+        }
         
         dataChannel.accessoryDataHandler = accessorySharedData
         
@@ -733,12 +736,13 @@ extension QorvoDemoViewController: NetworkConfigViewDelegate {
   func networkConfigView(_ view: NetworkConfigView,
                          didTapSendTo ip: String,
                          port: Int,
-                         distance: String,
-                         azimuth: String) {
-    // Use the passed-in distance & azimuth directly
-    let urlString = "http://\(ip):\(port)/update?distance=\(distance)&azimuth=\(azimuth)"
-    guard let url = URL(string: urlString) else { return }
-    URLSession.shared.dataTask(with: url).resume()
+                         payload: Data) {
+    guard let url = URL(string: "http://\(ip):\(port)/update") else { return }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = payload
+    URLSession.shared.dataTask(with: request).resume()
   }
 }
 
@@ -807,8 +811,30 @@ extension QorvoDemoViewController {
     }
     
     func cacheToken(_ token: NIDiscoveryToken, accessoryName: String) {
-        accessoryMap[token] = accessoryName
-    }
+            accessoryMap[token] = accessoryName
+        }
+
+        /// Builds an array describing every connected device with its distance and azimuth.
+        func allDevicesInfo() -> [[String: Any]] {
+            var result: [[String: Any]] = []
+            for device in qorvoDevices {
+                guard let dev = device,
+                      let location = dev.uwbLocation else { continue }
+                let distance = location.distance
+                let azimuthCheck = azimuth(location.direction)
+                if azimuthCheck.isNaN { continue }
+                let az: Int
+                if Settings().isDirectionEnable {
+                    az = Int(90 * Double(azimuthCheck))
+                } else {
+                    az = Int(rad2deg(Double(azimuthCheck)))
+                }
+                result.append(["id": dev.bleUniqueID,
+                               "distance": distance,
+                               "azimuth": az])
+            }
+            return result
+        }
     
     func handleUserDidNotAllow() {
         // Beginning in iOS 15, persistent access state in Settings.

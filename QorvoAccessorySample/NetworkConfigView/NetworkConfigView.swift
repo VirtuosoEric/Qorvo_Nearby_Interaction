@@ -5,8 +5,7 @@ protocol NetworkConfigViewDelegate: AnyObject {
     func networkConfigView(_ view: NetworkConfigView,
                            didTapSendTo ip: String,
                            port: Int,
-                           distance: String,
-                           azimuth: String)
+                           payload: Data)
 }
 
 /// A view that lets the user enter an IP/port and stream distance & azimuth to the server
@@ -18,7 +17,9 @@ class NetworkConfigView: UIView {
     weak var delegate: NetworkConfigViewDelegate?
     /// Reference to the view that exposes the current distance & azimuth strings.
     weak var locationFields: LocationFields?
-
+    /// Callback providing info about all connected devices to send over the network.
+    var dataProvider: (() -> [[String: Any]])?
+    
     // MARK: – Connection State
     private var isConnected = false
     private var sendTimer: Timer?
@@ -167,14 +168,16 @@ class NetworkConfigView: UIView {
     }
 
     private func sendPacket() {
-        let distance = locationFields?.currentDistance ?? ""
-        let azimuth  = locationFields?.currentAzimuth  ?? ""
+        let info = dataProvider?() ?? []
+        guard JSONSerialization.isValidJSONObject(info),
+              let json = try? JSONSerialization.data(withJSONObject: info) else {
+            return
+        }
 
         delegate?.networkConfigView(self,
                                     didTapSendTo: cachedIP,
                                     port: cachedPort,
-                                    distance: distance,
-                                    azimuth: azimuth)
+                                    payload: json)
     }
 
     // MARK: – UI State
